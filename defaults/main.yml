@@ -1,0 +1,73 @@
+---
+clair_olafnorge_de_compose:
+  version: "3.7"
+  services:
+    clair:
+      command: -config=/config/config.yaml
+      configs:
+        - source: "clair-config-{{ clair_olafnorge_de_config_templated.checksum[:10] }}"
+          target: /config/config.yaml
+      deploy:
+        labels: "{{ clair_olafnorge_de_labels }}"
+        placement:
+          constraints:
+            - node.role != manager
+        replicas: 1
+        restart_policy:
+          condition: on-failure
+          delay: 5s
+          max_attempts: 5
+          window: 300s
+        update_config:
+          failure_action: rollback
+          monitor: 120s
+      # https://quay.io/repository/coreos/clair?tab=tags
+      image: quay.io/coreos/clair:v2.1.3
+      networks: "{{ clair_olafnorge_de_networks }}"
+      volumes:
+        - /etc/localtime:/etc/localtime:ro
+        - /etc/timezone:/etc/timezone:ro
+    database:
+      deploy:
+        placement:
+          constraints:
+            - node.role != manager
+        replicas: 1
+        restart_policy:
+          condition: on-failure
+          delay: 5s
+          max_attempts: 5
+          window: 300s
+        update_config:
+          failure_action: rollback
+          monitor: 120s
+      environment:
+        - POSTGRES_PASSWORD{{ '_FILE' if clair_olafnorge_de_use_secrets else '' }}={{ '/run/secrets/' if clair_olafnorge_de_use_secrets else '' }}{{ clair_olafnorge_de_environment.db_pass }}
+      image: postgres:10
+      networks:
+        - "{{ clair_olafnorge_de_network_internal }}"
+      volumes:
+        - /etc/localtime:/etc/localtime:ro
+        - /etc/timezone:/etc/timezone:ro
+  networks: "{{ clair_olafnorge_de_network_definitions }}"
+  configs: "{{ clair_olafnorge_de_config_dict }}"
+
+clair_olafnorge_de_labels: []
+clair_olafnorge_de_name: clairolafnorgede
+clair_olafnorge_de_network_definitions: []
+clair_olafnorge_de_network_internal: internal
+clair_olafnorge_de_networks:
+  - "{{ clair_olafnorge_de_network_internal }}"
+clair_olafnorge_de_config_path: /root/clair-config.yaml
+clair_olafnorge_de_use_secrets: yes
+
+clair_olafnorge_de_environment:
+  db_pass: "{{ clair_olafnorge_de_secrets.db_pass.name if clair_olafnorge_de_use_secrets else clair_olafnorge_de_db_pass }}"
+
+clair_olafnorge_de_secrets:
+  db_pass:
+    data: "{{ clair_olafnorge_de_db_pass }}"
+    name: clair_olafnorge_de_db_pass
+
+# vaults, you may define them in a separate file which overrides these defaults
+clair_olafnorge_de_db_pass: # FIXME: add your vault here using 'ansible-vault'
